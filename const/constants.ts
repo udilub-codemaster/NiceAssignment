@@ -21,3 +21,8 @@ export const testData = {
   CHECKING_ACCOUNT_TYPE: 'CHECKING',
 } as const;
 
+export const regex = {
+  numericId: /^\d+$/,
+  signedDecimal: /^-?\d+(\.\d+)?$/,
+} as const;
+

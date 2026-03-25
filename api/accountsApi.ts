@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import { execFile } from 'child_process';
-import { baseUrl } from '@const/constants';
+import { baseUrl, regex } from '@const/constants';
 import { extractXmlTag } from '@utils/xmlUtils';
 import { buildCurlErrorBody, getCurlExecutable, parseCurlStdoutForHttpStatus } from '@utils/curlUtils';
 
@@ -25,7 +25,7 @@ function extractAccountBlocks(accountsBlockXml: string): string[] {
 }
 
 function assertNumeric(str: string, fieldName: string): void {
-  if (!/^-?\d+(\.\d+)?$/.test(str)) {
+  if (!regex.signedDecimal.test(str)) {
     throw new Error(`Invalid numeric value for <${fieldName}>: "${str}"`);
   }
 }
@@ -36,7 +36,7 @@ function validateExpectedAccountStructure(accountBlockXml: string): Account {
   const type = extractXmlTag(accountBlockXml, 'type');
   const balance = extractXmlTag(accountBlockXml, 'balance');
 
-  if (!/^\d+$/.test(id)) {
+  if (!regex.numericId.test(id)) {
     throw new Error(`Account lookup response has non-numeric <id>: "${id}"`);
   }
   assertNumeric(balance, 'balance');
@@ -201,10 +201,10 @@ export async function createCheckingAccountViaCurl(params: {
   customerId: string;
   fromAccountId: string;
 }): Promise<Account> {
-  if (!/^\d+$/.test(params.customerId)) {
+  if (!regex.numericId.test(params.customerId)) {
     throw new Error(`createCheckingAccountViaCurl: invalid customerId "${params.customerId}"`);
   }
-  if (!/^\d+$/.test(params.fromAccountId)) {
+  if (!regex.numericId.test(params.fromAccountId)) {
     throw new Error(`createCheckingAccountViaCurl: invalid fromAccountId "${params.fromAccountId}"`);
   }
 

@@ -7,7 +7,6 @@ export class LoginPage {
 
   private readonly loginErrorMessage: Locator;
   private readonly customerLoginHeading: Locator;
-  private readonly logoutLink: Locator;
 
   constructor(private readonly page: Page) {
     // Use accessible labels/roles to avoid brittle selectors.
@@ -19,9 +18,6 @@ export class LoginPage {
       'input[type="submit"][value="Log In"], input[type="submit"][value="Log in"], button:has-text("Log In")',
     );
 
-    // After successful login, ParaBank shows the account overview.
-    this.logoutLink = this.page.getByRole('link', { name: /log out/i });
-
     this.loginErrorMessage = this.page.getByText(
       /an internal error has occurred and has been logged\./i,
     );
@@ -31,32 +27,17 @@ export class LoginPage {
   async goto(): Promise<void> {
     await this.page.goto('/');
 
-    // After registration, ParaBank may already start a session.
-    // In that case, username/password inputs won't be present.
-    try {
-      await this.username.waitFor({ state: 'visible', timeout: 5000 });
-      return;
-    } catch {
-      await this.logoutLink.waitFor({ state: 'visible', timeout: 5000 });
-    }
-  }
-
-  async logout(): Promise<void> {
-    // Clicks "Log Out" when we are already authenticated.
-    await this.logoutLink.click();
-
-    // Wait until we are clearly back on the login page.
-    await this.customerLoginHeading.waitFor({ state: 'visible', timeout: 30000 });
-    await this.username.waitFor({ state: 'visible', timeout: 30000 });
+    // Login form may or may not be visible depending on authentication state.
+    // We only guarantee navigation completes; callers can decide what state they expect.
+    await this.page.waitForLoadState('domcontentloaded');
   }
 
   async login(username: string, password: string): Promise<void> {
-    if (await this.logoutLink.isVisible().catch(() => false)) {
-      // Already logged in: no-op for the login submit.
+    if (!(await this.username.isVisible().catch(() => false))) {
+      // Likely already authenticated (ParaBank redirects away from the login form).
       return;
     }
 
-    await this.username.waitFor({ state: 'visible', timeout: 30000 });
     await this.password.waitFor({ state: 'visible', timeout: 30000 });
 
     await this.username.fill(username);
@@ -69,20 +50,18 @@ export class LoginPage {
     await this.loginButton.waitFor({ state: 'visible', timeout: 30000 });
     await this.loginButton.click();
 
-    // Wait for either a successful state or the known login error message.
-    const success = this.logoutLink.waitFor({ state: 'visible', timeout: 30000 });
+    // Wait for either the known login error message or a redirect away from the login heading.
+    // (Logout is part of the global menu, not the login page object.)
     const failure = this.loginErrorMessage.waitFor({ state: 'visible', timeout: 30000 });
+    const movedAway = this.customerLoginHeading.waitFor({ state: 'detached', timeout: 30000 });
     const result = await Promise.race([
-      success.then(() => 'success'),
+      movedAway.then(() => 'success'),
       failure.then(() => 'failure'),
     ]);
 
-    if (result === 'failure') {
+    if (result !== 'success') {
       throw new Error('Login failed: ParaBank returned "An internal error has occurred and has been logged."');
     }
-
-    // Successful state: either accounts overview is ready or soon after.
-    await this.logoutLink.waitFor({ state: 'visible', timeout: 30000 });
   }
 }
 

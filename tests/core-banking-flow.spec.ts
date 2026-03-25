@@ -2,22 +2,22 @@ import { expect } from '@playwright/test';
 import { test } from '@fixtures/fixtures';
 import { createFakeRegistrationUser } from '@utils/createFakeRegistrationUser';
 import { escapeRegExp } from '@utils/escapeRegExp';
-import { parseMoneyToCents } from '@utils/parseMoneyToCents';
 import { createCoreBankingFlowState } from '@utils/coreBankingFlowState';
+import { validateTransferBalancesUpdatedCorrectly } from '@utils/transferBalanceAssertions';
 import { getCustomerIdByLogin } from '@api/customerApi';
 import {
   createCheckingAccountViaCurl,
   getAccountById,
   getExistingAccountByCustomerId,
 } from '@api/accountsApi';
-import { testData, uiTimeouts } from '@const/constants';
+import { regex, testData, uiTimeouts } from '@const/constants';
 
 test.describe('core-banking flow', () => {
   test('core-banking: e2e register->login->create CHECKING->transfer->validate balances', async ({
     registerPage,
     accountsOverviewPage,
     transferFundsPage,
-    loginPage,
+    topMenuPage,
     request,
   }) => {
     const user = createFakeRegistrationUser();
@@ -29,29 +29,30 @@ test.describe('core-banking flow', () => {
       await expect(registerPage.registrationSuccessMessage).toBeVisible({ timeout: uiTimeouts.LONG_MS });
       await accountsOverviewPage.goto();
       await expect(accountsOverviewPage.accountsOverviewHeading).toBeVisible();
-      await expect(accountsOverviewPage.logoutLink).toBeVisible();
+      await expect(topMenuPage.logoutLink).toBeVisible();
       // After registration, ParaBank already logs the user in.
     });
 
     await test.step('Fetch customer and accounts (API)', async () => {
-      state.customerId = await getCustomerIdByLogin(request, user.username, user.password);
-      expect(state.customerId).toMatch(/^\d+$/);
-      const existingAccount = await getExistingAccountByCustomerId(request, state.customerId);
+      const customerId = await getCustomerIdByLogin(request, user.username, user.password);
+      expect(customerId).toMatch(regex.numericId);
+      state.customerId = customerId;
+      const existingAccount = await getExistingAccountByCustomerId(request, customerId);
       state.existingAccountId = existingAccount.id;
-      expect(existingAccount.id).toMatch(/^\d+$/);
-      expect(existingAccount.customerId).toBe(state.customerId);
-      expect(existingAccount.balance).toMatch(/^-?\d+(\.\d+)?$/);
+      expect(existingAccount.id).toMatch(regex.numericId);
+      expect(existingAccount.customerId).toBe(customerId);
+      expect(existingAccount.balance).toMatch(regex.signedDecimal);
 
       const createdCheckingAccount = await createCheckingAccountViaCurl({
-        customerId: state.customerId,
+        customerId,
         fromAccountId: existingAccount.id,
       });
       state.createdCheckingAccountId = createdCheckingAccount.id;
       state.createdCheckingAccountBalance = createdCheckingAccount.balance;
-      expect(createdCheckingAccount.id).toMatch(/^\d+$/);
-      expect(createdCheckingAccount.customerId).toBe(state.customerId);
+      expect(createdCheckingAccount.id).toMatch(regex.numericId);
+      expect(createdCheckingAccount.customerId).toBe(customerId);
       expect(createdCheckingAccount.type).toBe(testData.CHECKING_ACCOUNT_TYPE);
-      expect(createdCheckingAccount.balance).toMatch(/^-?\d+(\.\d+)?$/);
+      expect(createdCheckingAccount.balance).toMatch(regex.signedDecimal);
     });
 
     await test.step('Verify new CHECKING appears in UI (accounts overview)', async () => {
@@ -83,21 +84,21 @@ test.describe('core-banking flow', () => {
     });
 
     await test.step('Validate balances updated correctly (API)', async () => {
-      const transferAmountCents = parseMoneyToCents(transferAmount);
-      const existingBeforeCents = parseMoneyToCents(state.existingBeforeTransferBalance!);
-      const createdBeforeCents = parseMoneyToCents(state.createdBeforeTransferBalance!);
-      const existingAfter = await getAccountById(request, state.existingAccountId!);
-      const createdAfter = await getAccountById(request, state.createdCheckingAccountId!);
-      const existingAfterCents = parseMoneyToCents(existingAfter.balance);
-      const createdAfterCents = parseMoneyToCents(createdAfter.balance);
-      expect(existingAfter.type).toBe(state.existingBeforeTransferType!);
-      expect(createdAfter.type).toBe(testData.CHECKING_ACCOUNT_TYPE);
-      expect(existingAfterCents).toBe(existingBeforeCents - transferAmountCents);
-      expect(createdAfterCents).toBe(createdBeforeCents + transferAmountCents);
+      await validateTransferBalancesUpdatedCorrectly({
+        expect,
+        request,
+        fromAccountId: state.existingAccountId!,
+        toAccountId: state.createdCheckingAccountId!,
+        transferAmount,
+        fromBeforeBalance: state.existingBeforeTransferBalance!,
+        toBeforeBalance: state.createdBeforeTransferBalance!,
+        fromExpectedType: state.existingBeforeTransferType!,
+        toExpectedType: testData.CHECKING_ACCOUNT_TYPE,
+      });
     });
 
     await test.step('Logout (UI)', async () => {
-      await loginPage.logout();
+      await topMenuPage.logout();
     });
   });
 });

@@ -1,5 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
-import { baseUrl } from '@const/constants';
+import { baseUrl, regex } from '@const/constants';
 import { extractXmlTag } from '@utils/xmlUtils';
 
 function extractCustomerBlock(bodyXml: string): string {
@@ -12,7 +12,7 @@ function extractCustomerBlock(bodyXml: string): string {
 
 function validateExpectedCustomerStructure(customerBlockXml: string): string {
   const customerId = extractXmlTag(customerBlockXml, 'id');
-  if (!/^\d+$/.test(customerId)) {
+  if (!regex.numericId.test(customerId)) {
     throw new Error(`Customer lookup response has non-numeric <id>: "${customerId}"`);
   }
 

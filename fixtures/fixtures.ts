@@ -3,12 +3,14 @@ import { RegisterPage } from '@pages/RegisterPage';
 import { LoginPage } from '@pages/LoginPage';
 import { AccountsOverviewPage } from '@pages/AccountsOverviewPage';
 import { TransferFundsPage } from '@pages/TransferFundsPage';
+import { TopMenuPage } from '@pages/TopMenuPage';
 
 type Fixtures = {
   registerPage: RegisterPage;
   loginPage: LoginPage;
   accountsOverviewPage: AccountsOverviewPage;
   transferFundsPage: TransferFundsPage;
+  topMenuPage: TopMenuPage;
 };
 
 export const test = base.extend<Fixtures>({
@@ -33,6 +35,11 @@ export const test = base.extend<Fixtures>({
   transferFundsPage: async ({ page }, use) => {
     const transferFundsPage = new TransferFundsPage(page);
     await use(transferFundsPage);
+  },
+
+  topMenuPage: async ({ page }, use) => {
+    const topMenuPage = new TopMenuPage(page);
+    await use(topMenuPage);
   },
 });
 
