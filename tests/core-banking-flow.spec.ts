@@ -15,6 +15,7 @@ import { regex, testData, uiTimeouts } from '@const/constants';
 test.describe('core-banking flow', () => {
   test('core-banking: e2e register->login->create CHECKING->transfer->validate balances', async ({
     registerPage,
+    loginPage,
     accountsOverviewPage,
     transferFundsPage,
     topMenuPage,
@@ -31,6 +32,13 @@ test.describe('core-banking flow', () => {
       await expect(accountsOverviewPage.accountsOverviewHeading).toBeVisible();
       await expect(topMenuPage.logoutLink).toBeVisible();
       // After registration, ParaBank already logs the user in.
+    });
+
+    await test.step('Logout and login (UI)', async () => {
+      await topMenuPage.logout();
+      await loginPage.goto();
+      await loginPage.login(user.username, user.password);
+      await expect(topMenuPage.logoutLink).toBeVisible({ timeout: uiTimeouts.LONG_MS });
     });
 
     await test.step('Fetch customer and accounts (API)', async () => {
